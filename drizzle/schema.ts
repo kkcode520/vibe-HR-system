@@ -1,17 +1,19 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  date,
+  decimal,
+} from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
  */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +27,57 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+/**
+ * 员工信息表
+ */
+export const employees = mysqlTable("employees", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeNo: varchar("employeeNo", { length: 32 }).notNull().unique(),
+  name: varchar("name", { length: 64 }).notNull(),
+  department: varchar("department", { length: 64 }).notNull(),
+  position: varchar("position", { length: 64 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 32 }),
+  hireDate: date("hireDate").notNull(),
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  avatar: varchar("avatar", { length: 512 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Employee = typeof employees.$inferSelect;
+export type InsertEmployee = typeof employees.$inferInsert;
+
+/**
+ * 请假记录表
+ */
+export const leaves = mysqlTable("leaves", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  leaveType: mysqlEnum("leaveType", [
+    "annual",     // 年假
+    "sick",       // 病假
+    "personal",   // 事假
+    "maternity",  // 产假
+    "paternity",  // 陪产假
+    "bereavement",// 丧假
+    "other",      // 其他
+  ]).notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate").notNull(),
+  days: decimal("days", { precision: 4, scale: 1 }).notNull(),
+  reason: text("reason"),
+  status: mysqlEnum("status", [
+    "pending",   // 待审批
+    "approved",  // 已批准
+    "rejected",  // 已拒绝
+    "cancelled", // 已取消
+  ]).default("pending").notNull(),
+  approvedBy: varchar("approvedBy", { length: 64 }),
+  approvedAt: timestamp("approvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Leave = typeof leaves.$inferSelect;
+export type InsertLeave = typeof leaves.$inferInsert;

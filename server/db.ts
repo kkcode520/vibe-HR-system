@@ -1,11 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, and, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, employees, leaves, InsertEmployee, InsertLeave } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -19,25 +18,14 @@ export async function getDb() {
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
+  if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
-
+  if (!db) { console.warn("[Database] Cannot upsert user: database not available"); return; }
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
+    const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
-
     const textFields = ["name", "email", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
-
     const assignNullable = (field: TextField) => {
       const value = user[field];
       if (value === undefined) return;
@@ -45,48 +33,111 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values[field] = normalized;
       updateSet[field] = normalized;
     };
-
     textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
+    if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
+    if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
+    else if (user.openId === ENV.ownerOpenId) { values.role = 'admin'; updateSet.role = 'admin'; }
+    if (!values.lastSignedIn) values.lastSignedIn = new Date();
+    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
+    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  } catch (error) { console.error("[Database] Failed to upsert user:", error); throw error; }
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
+  if (!db) { console.warn("[Database] Cannot get user: database not available"); return undefined; }
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ─── Employee Queries ────────────────────────────────────────────────────────
+
+export async function getAllEmployees(opts?: { department?: string; search?: string; status?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+  let query = db.select().from(employees).$dynamic();
+  const conditions = [];
+  if (opts?.department) conditions.push(eq(employees.department, opts.department));
+  if (opts?.status) conditions.push(eq(employees.status, opts.status as "active" | "inactive"));
+  if (opts?.search) {
+    conditions.push(
+      or(
+        like(employees.name, `%${opts.search}%`),
+        like(employees.employeeNo, `%${opts.search}%`),
+        like(employees.position, `%${opts.search}%`)
+      )
+    );
+  }
+  if (conditions.length > 0) query = query.where(and(...conditions));
+  return query.orderBy(employees.id);
+}
+
+export async function getEmployeeById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(employees).where(eq(employees.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getEmployeeByNo(employeeNo: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(employees).where(eq(employees.employeeNo, employeeNo)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function insertEmployee(data: InsertEmployee) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(employees).values(data);
+}
+
+// ─── Leave Queries ────────────────────────────────────────────────────────────
+
+export async function getAllLeaves(opts?: { employeeId?: number; status?: string; leaveType?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+  let query = db.select().from(leaves).$dynamic();
+  const conditions = [];
+  if (opts?.employeeId) conditions.push(eq(leaves.employeeId, opts.employeeId));
+  if (opts?.status) conditions.push(eq(leaves.status, opts.status as "pending" | "approved" | "rejected" | "cancelled"));
+  if (opts?.leaveType) conditions.push(eq(leaves.leaveType, opts.leaveType as "annual" | "sick" | "personal" | "maternity" | "paternity" | "bereavement" | "other"));
+  if (conditions.length > 0) query = query.where(and(...conditions));
+  return query.orderBy(leaves.createdAt);
+}
+
+export async function getLeaveById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(leaves).where(eq(leaves.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function insertLeave(data: InsertLeave) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(leaves).values(data);
+}
+
+export async function getLeaveStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0 };
+  const all = await db.select().from(leaves);
+  return {
+    total: all.length,
+    pending: all.filter(l => l.status === "pending").length,
+    approved: all.filter(l => l.status === "approved").length,
+    rejected: all.filter(l => l.status === "rejected").length,
+  };
+}
+
+export async function getEmployeeStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, active: 0, inactive: 0 };
+  const all = await db.select().from(employees);
+  return {
+    total: all.length,
+    active: all.filter(e => e.status === "active").length,
+    inactive: all.filter(e => e.status === "inactive").length,
+  };
+}
