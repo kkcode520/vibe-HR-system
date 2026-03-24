@@ -48,3 +48,11 @@
 - [x] 前端：员工详情页假期配额卡片（总额/已用/剩余进度条）
 - [x] 前端：员工列表页年假/病假/事假剩余天数迷你进度条
 - [x] 编写配额功能单元测试（21 个全部通过）
+
+## API employeeNo 改造
+- [x] 后端：GET /api/employees/:employeeNo 改用工号查询
+- [x] 后端：GET /api/leaves?employee_no= 改用工号筛选
+- [x] 后端：GET /api/employees/:employeeNo/quotas 改用工号查询
+- [x] 后端：POST /api/leaves body 中 employeeId 改为 employeeNo
+- [x] 前端：API 文档页更新所有接口参数说明
+- [x] 新增 rest-api.test.ts，27 个测试全部通过

@@ -7,7 +7,15 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { getAllEmployees, getEmployeeById, getAllLeaves, getLeaveById, createLeave, updateLeaveStatus, getLeaveQuotasByEmployee } from "../db";
+import {
+  getAllEmployees,
+  getEmployeeByNo,
+  getAllLeaves,
+  getLeaveById,
+  createLeave,
+  updateLeaveStatus,
+  getLeaveQuotasByEmployee,
+} from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,43 +67,63 @@ async function startServer() {
   });
 
   /**
-   * GET /api/employees/:id
-   * Returns employee info + leave records
+   * GET /api/employees/:employeeNo
+   * Returns employee info + leave records (lookup by employeeNo)
    */
-  app.get("/api/employees/:id", async (req, res) => {
+  app.get("/api/employees/:employeeNo/quotas", async (req, res) => {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
-        return res.status(400).json({ success: false, error: "Invalid employee ID" });
-      }
-      const employee = await getEmployeeById(id);
-      if (!employee) {
-        return res.status(404).json({ success: false, error: "Employee not found" });
-      }
-      const leaveRecords = await getAllLeaves({ employeeId: id });
+      const { employeeNo } = req.params;
+      const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getFullYear();
+      const emp = await getEmployeeByNo(employeeNo);
+      if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
+      const quotas = await getLeaveQuotasByEmployee(emp.id, year);
       res.json({
         success: true,
-        data: { ...employee, leaves: leaveRecords },
+        employeeNo: emp.employeeNo,
+        employeeName: emp.name,
+        year,
+        data: quotas,
       });
     } catch (err) {
-      console.error("[REST] GET /api/employees/:id error:", err);
+      console.error("[REST] GET /api/employees/:employeeNo/quotas error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/employees/:employeeNo", async (req, res) => {
+    try {
+      const { employeeNo } = req.params;
+      const emp = await getEmployeeByNo(employeeNo);
+      if (!emp) {
+        return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
+      }
+      const leaveRecords = await getAllLeaves({ employeeId: emp.id });
+      res.json({
+        success: true,
+        data: { ...emp, leaves: leaveRecords },
+      });
+    } catch (err) {
+      console.error("[REST] GET /api/employees/:employeeNo error:", err);
       res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
 
   /**
    * GET /api/leaves
-   * Query params: employee_id, status, leave_type
+   * Query params: employee_no, status, leave_type
    */
   app.get("/api/leaves", async (req, res) => {
     try {
-      const { employee_id, status, leave_type } = req.query as Record<string, string>;
-      const employeeId = employee_id ? parseInt(employee_id, 10) : undefined;
-      const data = await getAllLeaves({
-        employeeId: isNaN(employeeId as number) ? undefined : employeeId,
-        status,
-        leaveType: leave_type,
-      });
+      const { employee_no, status, leave_type } = req.query as Record<string, string>;
+      let employeeId: number | undefined;
+      if (employee_no) {
+        const emp = await getEmployeeByNo(employee_no);
+        if (!emp) {
+          return res.status(404).json({ success: false, error: `员工工号 ${employee_no} 不存在` });
+        }
+        employeeId = emp.id;
+      }
+      const data = await getAllLeaves({ employeeId, status, leaveType: leave_type });
       res.json({
         success: true,
         total: data.length,
@@ -108,45 +136,23 @@ async function startServer() {
   });
 
   /**
-   * GET /api/employees/:id/quotas
-   * Query: year (optional, default current year)
-   */
-  app.get("/api/employees/:id/quotas", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) return res.status(400).json({ success: false, error: "无效的员工 ID" });
-      const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getFullYear();
-      const emp = await getEmployeeById(id);
-      if (!emp) return res.status(404).json({ success: false, error: "员工不存在" });
-      const quotas = await getLeaveQuotasByEmployee(id, year);
-      res.json({
-        success: true,
-        employeeId: id,
-        employeeName: emp.name,
-        year,
-        data: quotas,
-      });
-    } catch (err) {
-      console.error("[REST] GET /api/employees/:id/quotas error:", err);
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
-  });
-
-  /**
    * POST /api/leaves
-   * Body: { employeeId, leaveType, startDate, endDate, days, reason? }
+   * Body: { employeeNo, leaveType, startDate, endDate, days, reason? }
    */
   app.post("/api/leaves", async (req, res) => {
     try {
-      const { employeeId, leaveType, startDate, endDate, days, reason } = req.body;
-      if (!employeeId || !leaveType || !startDate || !endDate || !days) {
-        return res.status(400).json({ success: false, error: "缺少必填字段：employeeId, leaveType, startDate, endDate, days" });
+      const { employeeNo, leaveType, startDate, endDate, days, reason } = req.body;
+      if (!employeeNo || !leaveType || !startDate || !endDate || !days) {
+        return res.status(400).json({
+          success: false,
+          error: "缺少必填字段：employeeNo, leaveType, startDate, endDate, days",
+        });
       }
-      const emp = await getEmployeeById(Number(employeeId));
-      if (!emp) return res.status(404).json({ success: false, error: "员工不存在" });
+      const emp = await getEmployeeByNo(String(employeeNo));
+      if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
       if (startDate > endDate) return res.status(400).json({ success: false, error: "开始日期不能晚于结束日期" });
       await createLeave({
-        employeeId: Number(employeeId),
+        employeeId: emp.id,
         leaveType,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
@@ -154,7 +160,12 @@ async function startServer() {
         reason: reason ?? null,
         status: "pending",
       });
-      res.status(201).json({ success: true, message: "请假申请已提交，等待审批" });
+      res.status(201).json({
+        success: true,
+        message: "请假申请已提交，等待审批",
+        employeeNo: emp.employeeNo,
+        employeeName: emp.name,
+      });
     } catch (err) {
       console.error("[REST] POST /api/leaves error:", err);
       res.status(500).json({ success: false, error: "Internal server error" });
@@ -171,7 +182,8 @@ async function startServer() {
       if (isNaN(id)) return res.status(400).json({ success: false, error: "无效的请假 ID" });
       const leave = await getLeaveById(id);
       if (!leave) return res.status(404).json({ success: false, error: "请假记录不存在" });
-      if (leave.status !== "pending") return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法审批` });
+      if (leave.status !== "pending")
+        return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法审批` });
       const approvedBy = req.body?.approvedBy ?? "管理员";
       await updateLeaveStatus(id, "approved", approvedBy);
       res.json({ success: true, message: "已批准该请假申请" });
@@ -191,7 +203,8 @@ async function startServer() {
       if (isNaN(id)) return res.status(400).json({ success: false, error: "无效的请假 ID" });
       const leave = await getLeaveById(id);
       if (!leave) return res.status(404).json({ success: false, error: "请假记录不存在" });
-      if (leave.status !== "pending") return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法拒绝` });
+      if (leave.status !== "pending")
+        return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法拒绝` });
       const approvedBy = req.body?.approvedBy ?? "管理员";
       await updateLeaveStatus(id, "rejected", approvedBy);
       res.json({ success: true, message: "已拒绝该请假申请" });

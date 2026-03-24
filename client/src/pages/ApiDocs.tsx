@@ -52,11 +52,11 @@ const endpoints: ApiEndpoint[] = [
   },
   {
     method: "GET",
-    path: "/api/employees/:id",
-    title: "按 ID 查询员工详情",
-    description: "根据员工 ID 返回该员工的详细信息，包含其所有请假记录。",
+    path: "/api/employees/:employeeNo",
+    title: "按工号查询员工详情",
+    description: "根据员工工号返回该员工的详细信息，包含其所有请假记录。",
     params: [
-      { name: "id", type: "number", required: true, description: "员工 ID（路径参数），如 /api/employees/1" },
+      { name: "employeeNo", type: "string", required: true, description: "员工工号（路径参数），如 /api/employees/EMP001" },
     ],
     responseExample: `{
   "success": true,
@@ -84,8 +84,33 @@ const endpoints: ApiEndpoint[] = [
 }`,
     difyExample: `在 Dify 工作流中添加 HTTP 节点：
 • 方法：GET
-• URL：${BASE_URL}/api/employees/{{#var.employee_id#}}
-• 无需额外参数，ID 直接拼接在 URL 中`,
+• URL：${BASE_URL}/api/employees/{{#var.employee_no#}}
+• 无需额外参数，工号直接拼接在 URL 中`,
+  },
+  {
+    method: "GET",
+    path: "/api/employees/:employeeNo/quotas",
+    title: "查询员工假期配额",
+    description: "根据员工工号返回该员工当年各类假期的总配额、已用天数和剩余天数。",
+    params: [
+      { name: "employeeNo", type: "string", required: true, description: "员工工号（路径参数），如 /api/employees/EMP001/quotas" },
+      { name: "year", type: "number", required: false, description: "查询年份，默认为当前年份，如 year=2026" },
+    ],
+    responseExample: `{
+  "success": true,
+  "employeeNo": "EMP001",
+  "employeeName": "张伟",
+  "year": 2026,
+  "data": [
+    { "leaveType": "annual", "totalDays": 15, "usedDays": 5, "remainingDays": 10 },
+    { "leaveType": "sick",   "totalDays": 15, "usedDays": 0, "remainingDays": 15 },
+    { "leaveType": "personal","totalDays": 10, "usedDays": 1, "remainingDays": 9 }
+  ]
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：GET
+• URL：${BASE_URL}/api/employees/{{#var.employee_no#}}/quotas
+• 可选 Query Params：year=2026`,
   },
   {
     method: "GET",
@@ -93,7 +118,7 @@ const endpoints: ApiEndpoint[] = [
     title: "查询请假记录",
     description: "返回所有请假记录，支持按员工 ID、审批状态、请假类型筛选。",
     params: [
-      { name: "employee_id", type: "number", required: false, description: "按员工 ID 筛选，如 employee_id=1" },
+      { name: "employee_no", type: "string", required: false, description: "按员工工号筛选，如 employee_no=EMP002" },
       { name: "status", type: "string", required: false, description: "审批状态：pending / approved / rejected / cancelled" },
       { name: "leave_type", type: "string", required: false, description: "请假类型：annual / sick / personal / maternity / paternity / bereavement / other" },
     ],
@@ -119,7 +144,7 @@ const endpoints: ApiEndpoint[] = [
 • 方法：GET
 • URL：${BASE_URL}/api/leaves
 • Query Params：
-  - employee_id: {{#var.employee_id#}}
+  - employee_no: {{#var.employee_no#}}
   - status: pending（查询待审批）`,
   },
   {
@@ -128,7 +153,7 @@ const endpoints: ApiEndpoint[] = [
     title: "提交请假申请",
     description: "提交一条新的请假申请，初始状态为待审批（pending）。请求体需为 JSON 格式。",
     params: [
-      { name: "employeeId", type: "number", required: true, description: "员工 ID，如 1" },
+      { name: "employeeNo", type: "string", required: true, description: "员工工号，如 EMP001" },
       { name: "leaveType", type: "string", required: true, description: "请假类型：annual / sick / personal / maternity / paternity / bereavement / other" },
       { name: "startDate", type: "string", required: true, description: "开始日期，格式 YYYY-MM-DD，如 2025-07-01" },
       { name: "endDate", type: "string", required: true, description: "结束日期，格式 YYYY-MM-DD，如 2025-07-05" },
@@ -145,7 +170,7 @@ const endpoints: ApiEndpoint[] = [
 • Headers：Content-Type: application/json
 • Body（JSON）：
   {
-    "employeeId": {{#var.employee_id#}},
+    "employeeNo": "{{#var.employee_no#}}",
     "leaveType": "annual",
     "startDate": "{{#var.start_date#}}",
     "endDate": "{{#var.end_date#}}",
