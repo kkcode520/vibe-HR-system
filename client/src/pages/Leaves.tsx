@@ -1,11 +1,13 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Search, CalendarDays, Users } from "lucide-react";
+import { CalendarDays, Plus, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
+import LeaveApplyDialog from "@/components/LeaveApplyDialog";
 
 const leaveTypeMap: Record<string, string> = {
   annual: "年假",
@@ -27,8 +29,11 @@ const statusMap: Record<string, { label: string; color: string }> = {
 export default function Leaves() {
   const [status, setStatus] = useState("all");
   const [leaveType, setLeaveType] = useState("all");
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<number | null>(null);
   const [, setLocation] = useLocation();
 
+  const utils = trpc.useUtils();
   const { data: employees } = trpc.employees.list.useQuery({});
   const { data: leaves, isLoading } = trpc.leaves.list.useQuery({
     status: status === "all" ? undefined : status,
@@ -37,15 +42,64 @@ export default function Leaves() {
 
   const employeeMap = new Map(employees?.map(e => [e.id, e]) ?? []);
 
+  const approveMutation = trpc.leaves.approve.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.leaves.list.invalidate();
+      utils.leaves.stats.invalidate();
+      setProcessingId(null);
+    },
+    onError: (err) => {
+      toast.error(err.message || "操作失败");
+      setProcessingId(null);
+    },
+  });
+
+  const rejectMutation = trpc.leaves.reject.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.leaves.list.invalidate();
+      utils.leaves.stats.invalidate();
+      setProcessingId(null);
+    },
+    onError: (err) => {
+      toast.error(err.message || "操作失败");
+      setProcessingId(null);
+    },
+  });
+
+  const handleApprove = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setProcessingId(id);
+    approveMutation.mutate({ id, approvedBy: "管理员" });
+  };
+
+  const handleReject = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setProcessingId(id);
+    rejectMutation.mutate({ id, approvedBy: "管理员" });
+  };
+
+  const allLeaves = trpc.leaves.list.useQuery({});
+  const pendingCount = allLeaves.data?.filter(l => l.status === "pending").length ?? 0;
+  const approvedCount = allLeaves.data?.filter(l => l.status === "approved").length ?? 0;
+  const rejectedCount = allLeaves.data?.filter(l => l.status === "rejected").length ?? 0;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">请假记录</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            共 <span className="font-medium text-foreground">{leaves?.length ?? 0}</span> 条记录
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">请假记录</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              共 <span className="font-medium text-foreground">{leaves?.length ?? 0}</span> 条记录
+            </p>
+          </div>
+          <Button onClick={() => setApplyOpen(true)} className="gap-2 w-fit">
+            <Plus className="h-4 w-4" />
+            提交请假申请
+          </Button>
         </div>
 
         {/* Filters */}
@@ -75,13 +129,13 @@ export default function Leaves() {
           </Select>
         </div>
 
-        {/* Status Summary */}
+        {/* Status Summary Pills */}
         <div className="flex flex-wrap gap-2">
           {[
-            { key: "all", label: "全部", count: leaves?.length ?? 0 },
-            { key: "pending", label: "待审批", count: leaves?.filter(l => l.status === "pending").length ?? 0 },
-            { key: "approved", label: "已批准", count: leaves?.filter(l => l.status === "approved").length ?? 0 },
-            { key: "rejected", label: "已拒绝", count: leaves?.filter(l => l.status === "rejected").length ?? 0 },
+            { key: "all", label: "全部", count: (allLeaves.data?.length ?? 0) },
+            { key: "pending", label: "待审批", count: pendingCount },
+            { key: "approved", label: "已批准", count: approvedCount },
+            { key: "rejected", label: "已拒绝", count: rejectedCount },
           ].map(item => (
             <button
               key={item.key}
@@ -109,7 +163,11 @@ export default function Leaves() {
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
               <CalendarDays className="h-12 w-12 mb-4 opacity-20" />
               <p className="text-base font-medium">暂无请假记录</p>
-              <p className="text-sm mt-1">请调整筛选条件</p>
+              <p className="text-sm mt-1">请调整筛选条件或提交新申请</p>
+              <Button variant="outline" className="mt-4 gap-2" onClick={() => setApplyOpen(true)}>
+                <Plus className="h-4 w-4" />
+                提交请假申请
+              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -123,6 +181,7 @@ export default function Leaves() {
                     <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3.5 whitespace-nowrap">天数</th>
                     <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3.5 whitespace-nowrap">审批状态</th>
                     <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3.5 whitespace-nowrap hidden lg:table-cell">申请原因</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3.5 whitespace-nowrap">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -130,6 +189,7 @@ export default function Leaves() {
                     const emp = employeeMap.get(leave.employeeId);
                     const colors = ["bg-blue-100 text-blue-700", "bg-indigo-100 text-indigo-700", "bg-violet-100 text-violet-700", "bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-700", "bg-rose-100 text-rose-700"];
                     const colorIndex = leave.employeeId % colors.length;
+                    const isProcessing = processingId === leave.id;
                     return (
                       <tr
                         key={leave.id}
@@ -166,9 +226,47 @@ export default function Leaves() {
                           </span>
                         </td>
                         <td className="px-4 py-4 hidden lg:table-cell">
-                          <span className="text-xs text-muted-foreground line-clamp-1 max-w-[200px]">
+                          <span className="text-xs text-muted-foreground line-clamp-1 max-w-[180px]">
                             {leave.reason ?? "—"}
                           </span>
+                        </td>
+                        <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                          {leave.status === "pending" ? (
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+                                disabled={isProcessing}
+                                onClick={(e) => handleApprove(leave.id, e)}
+                              >
+                                {isProcessing && approveMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="h-3 w-3" />
+                                )}
+                                批准
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                disabled={isProcessing}
+                                onClick={(e) => handleReject(leave.id, e)}
+                              >
+                                {isProcessing && rejectMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <XCircle className="h-3 w-3" />
+                                )}
+                                拒绝
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {leave.approvedBy ? `by ${leave.approvedBy}` : "—"}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -179,6 +277,12 @@ export default function Leaves() {
           )}
         </Card>
       </div>
+
+      {/* Leave Apply Dialog */}
+      <LeaveApplyDialog
+        open={applyOpen}
+        onOpenChange={setApplyOpen}
+      />
     </DashboardLayout>
   );
 }

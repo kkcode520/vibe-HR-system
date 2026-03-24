@@ -1,8 +1,12 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Mail, Phone, Calendar, Building2, Briefcase, Hash, CalendarDays } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Calendar, Building2, Briefcase, Hash, CalendarDays, Plus, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
+import { useState } from "react";
+import { toast } from "sonner";
+import LeaveApplyDialog from "@/components/LeaveApplyDialog";
 
 const leaveTypeMap: Record<string, string> = {
   annual: "年假",
@@ -25,8 +29,49 @@ export default function EmployeeDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const id = parseInt(params.id ?? "0", 10);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<number | null>(null);
 
+  const utils = trpc.useUtils();
   const { data: employee, isLoading } = trpc.employees.byId.useQuery({ id });
+
+  const approveMutation = trpc.leaves.approve.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.employees.byId.invalidate({ id });
+      utils.leaves.list.invalidate();
+      utils.leaves.stats.invalidate();
+      setProcessingId(null);
+    },
+    onError: (err) => {
+      toast.error(err.message || "操作失败");
+      setProcessingId(null);
+    },
+  });
+
+  const rejectMutation = trpc.leaves.reject.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.employees.byId.invalidate({ id });
+      utils.leaves.list.invalidate();
+      utils.leaves.stats.invalidate();
+      setProcessingId(null);
+    },
+    onError: (err) => {
+      toast.error(err.message || "操作失败");
+      setProcessingId(null);
+    },
+  });
+
+  const handleApprove = (leaveId: number) => {
+    setProcessingId(leaveId);
+    approveMutation.mutate({ id: leaveId, approvedBy: "管理员" });
+  };
+
+  const handleReject = (leaveId: number) => {
+    setProcessingId(leaveId);
+    rejectMutation.mutate({ id: leaveId, approvedBy: "管理员" });
+  };
 
   if (isLoading) {
     return (
@@ -103,53 +148,115 @@ export default function EmployeeDetail() {
         {/* Leave Records */}
         <Card className="border-border/60 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              请假记录
-              <span className="ml-1 text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                {employee.leaves?.length ?? 0} 条
-              </span>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-primary" />
+                请假记录
+                <span className="ml-1 text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {employee.leaves?.length ?? 0} 条
+                </span>
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-8 text-xs"
+                onClick={() => setApplyOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                申请请假
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {!employee.leaves || employee.leaves.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <CalendarDays className="h-10 w-10 mb-3 opacity-20" />
                 <p className="text-sm">暂无请假记录</p>
+                <Button variant="outline" size="sm" className="mt-3 gap-1.5 text-xs" onClick={() => setApplyOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  申请请假
+                </Button>
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {employee.leaves.map(leave => (
-                  <div key={leave.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-3 hover:bg-muted/20 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-primary/8 flex items-center justify-center shrink-0">
-                        <CalendarDays className="h-4 w-4 text-primary/70" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-foreground">
-                            {leaveTypeMap[leave.leaveType] ?? leave.leaveType}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusMap[leave.status]?.color}`}>
-                            {statusMap[leave.status]?.label}
-                          </span>
+                {employee.leaves.map(leave => {
+                  const isProcessing = processingId === leave.id;
+                  return (
+                    <div key={leave.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-3 hover:bg-muted/20 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-primary/8 flex items-center justify-center shrink-0">
+                          <CalendarDays className="h-4 w-4 text-primary/70" />
                         </div>
-                        {leave.reason && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{leave.reason}</p>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-foreground">
+                              {leaveTypeMap[leave.leaveType] ?? leave.leaveType}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusMap[leave.status]?.color}`}>
+                              {statusMap[leave.status]?.label}
+                            </span>
+                          </div>
+                          {leave.reason && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{leave.reason}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="text-sm text-muted-foreground text-right">
+                          <div className="whitespace-nowrap">{String(leave.startDate).slice(0, 10)} ~ {String(leave.endDate).slice(0, 10)}</div>
+                          <div className="font-semibold text-foreground">{String(leave.days)} 天</div>
+                        </div>
+                        {leave.status === "pending" && (
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2.5 text-xs gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+                              disabled={isProcessing}
+                              onClick={() => handleApprove(leave.id)}
+                            >
+                              {isProcessing && approveMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3 w-3" />
+                              )}
+                              批准
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2.5 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                              disabled={isProcessing}
+                              onClick={() => handleReject(leave.id)}
+                            >
+                              {isProcessing && rejectMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <XCircle className="h-3 w-3" />
+                              )}
+                              拒绝
+                            </Button>
+                          </div>
+                        )}
+                        {(leave.status === "approved" || leave.status === "rejected") && leave.approvedBy && (
+                          <span className="text-xs text-muted-foreground">by {leave.approvedBy}</span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
-                      <span>{String(leave.startDate).slice(0, 10)} ~ {String(leave.endDate).slice(0, 10)}</span>
-                      <span className="font-semibold text-foreground">{String(leave.days)} 天</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Leave Apply Dialog */}
+      <LeaveApplyDialog
+        open={applyOpen}
+        onOpenChange={setApplyOpen}
+        defaultEmployeeId={id}
+      />
     </DashboardLayout>
   );
 }

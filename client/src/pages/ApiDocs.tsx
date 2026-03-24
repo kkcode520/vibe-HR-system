@@ -1,12 +1,12 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Copy, CheckCheck, Globe, Zap, Code2, ChevronDown, ChevronRight } from "lucide-react";
+import { BookOpen, Copy, CheckCheck, Globe, Zap, Code2, ChevronDown, ChevronRight, Send, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 const BASE_URL = window.location.origin;
 
 type ApiEndpoint = {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH";
   path: string;
   title: string;
   description: string;
@@ -122,6 +122,77 @@ const endpoints: ApiEndpoint[] = [
   - employee_id: {{#var.employee_id#}}
   - status: pending（查询待审批）`,
   },
+  {
+    method: "POST",
+    path: "/api/leaves",
+    title: "提交请假申请",
+    description: "提交一条新的请假申请，初始状态为待审批（pending）。请求体需为 JSON 格式。",
+    params: [
+      { name: "employeeId", type: "number", required: true, description: "员工 ID，如 1" },
+      { name: "leaveType", type: "string", required: true, description: "请假类型：annual / sick / personal / maternity / paternity / bereavement / other" },
+      { name: "startDate", type: "string", required: true, description: "开始日期，格式 YYYY-MM-DD，如 2025-07-01" },
+      { name: "endDate", type: "string", required: true, description: "结束日期，格式 YYYY-MM-DD，如 2025-07-05" },
+      { name: "days", type: "number", required: true, description: "请假天数，如 5" },
+      { name: "reason", type: "string", required: false, description: "申请原因，最多 500 字" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "请假申请已提交，等待审批"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：POST
+• URL：${BASE_URL}/api/leaves
+• Headers：Content-Type: application/json
+• Body（JSON）：
+  {
+    "employeeId": {{#var.employee_id#}},
+    "leaveType": "annual",
+    "startDate": "{{#var.start_date#}}",
+    "endDate": "{{#var.end_date#}}",
+    "days": {{#var.days#}},
+    "reason": "{{#var.reason#}}"
+  }`,
+  },
+  {
+    method: "PATCH",
+    path: "/api/leaves/:id/approve",
+    title: "批准请假申请",
+    description: "将指定 ID 的请假申请状态从 pending 改为 approved。只有待审批状态的申请可以被批准。",
+    params: [
+      { name: "id", type: "number", required: true, description: "请假记录 ID（路径参数），如 /api/leaves/3/approve" },
+      { name: "approvedBy", type: "string", required: false, description: "审批人姓名（请求体 JSON），默认为「管理员」" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "已批准该请假申请"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：PATCH
+• URL：${BASE_URL}/api/leaves/{{#var.leave_id#}}/approve
+• Headers：Content-Type: application/json
+• Body（JSON，可选）：
+  { "approvedBy": "{{#var.approver_name#}}" }`,
+  },
+  {
+    method: "PATCH",
+    path: "/api/leaves/:id/reject",
+    title: "拒绝请假申请",
+    description: "将指定 ID 的请假申请状态从 pending 改为 rejected。只有待审批状态的申请可以被拒绝。",
+    params: [
+      { name: "id", type: "number", required: true, description: "请假记录 ID（路径参数），如 /api/leaves/3/reject" },
+      { name: "approvedBy", type: "string", required: false, description: "审批人姓名（请求体 JSON），默认为「管理员」" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "已拒绝该请假申请"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：PATCH
+• URL：${BASE_URL}/api/leaves/{{#var.leave_id#}}/reject
+• Headers：Content-Type: application/json
+• Body（JSON，可选）：
+  { "approvedBy": "{{#var.approver_name#}}" }`,
+  },
 ];
 
 const leaveTypeTable = [
@@ -223,7 +294,9 @@ export default function ApiDocs() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className={`text-xs font-bold px-2 py-1 rounded-md shrink-0 ${
-                        ep.method === "GET" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+                        ep.method === "GET" ? "bg-blue-100 text-blue-700" :
+                        ep.method === "POST" ? "bg-emerald-100 text-emerald-700" :
+                        "bg-violet-100 text-violet-700"
                       }`}>
                         {ep.method}
                       </span>

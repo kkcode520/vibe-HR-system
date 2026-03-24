@@ -7,7 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { getAllEmployees, getEmployeeById, getAllLeaves } from "../db";
+import { getAllEmployees, getEmployeeById, getAllLeaves, getLeaveById, createLeave, updateLeaveStatus } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -103,6 +103,75 @@ async function startServer() {
       });
     } catch (err) {
       console.error("[REST] GET /api/leaves error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
+   * POST /api/leaves
+   * Body: { employeeId, leaveType, startDate, endDate, days, reason? }
+   */
+  app.post("/api/leaves", async (req, res) => {
+    try {
+      const { employeeId, leaveType, startDate, endDate, days, reason } = req.body;
+      if (!employeeId || !leaveType || !startDate || !endDate || !days) {
+        return res.status(400).json({ success: false, error: "缺少必填字段：employeeId, leaveType, startDate, endDate, days" });
+      }
+      const emp = await getEmployeeById(Number(employeeId));
+      if (!emp) return res.status(404).json({ success: false, error: "员工不存在" });
+      if (startDate > endDate) return res.status(400).json({ success: false, error: "开始日期不能晚于结束日期" });
+      await createLeave({
+        employeeId: Number(employeeId),
+        leaveType,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        days: String(days),
+        reason: reason ?? null,
+        status: "pending",
+      });
+      res.status(201).json({ success: true, message: "请假申请已提交，等待审批" });
+    } catch (err) {
+      console.error("[REST] POST /api/leaves error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
+   * PATCH /api/leaves/:id/approve
+   * Body: { approvedBy? }
+   */
+  app.patch("/api/leaves/:id/approve", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ success: false, error: "无效的请假 ID" });
+      const leave = await getLeaveById(id);
+      if (!leave) return res.status(404).json({ success: false, error: "请假记录不存在" });
+      if (leave.status !== "pending") return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法审批` });
+      const approvedBy = req.body?.approvedBy ?? "管理员";
+      await updateLeaveStatus(id, "approved", approvedBy);
+      res.json({ success: true, message: "已批准该请假申请" });
+    } catch (err) {
+      console.error("[REST] PATCH /api/leaves/:id/approve error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
+   * PATCH /api/leaves/:id/reject
+   * Body: { approvedBy? }
+   */
+  app.patch("/api/leaves/:id/reject", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ success: false, error: "无效的请假 ID" });
+      const leave = await getLeaveById(id);
+      if (!leave) return res.status(404).json({ success: false, error: "请假记录不存在" });
+      if (leave.status !== "pending") return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法拒绝` });
+      const approvedBy = req.body?.approvedBy ?? "管理员";
+      await updateLeaveStatus(id, "rejected", approvedBy);
+      res.json({ success: true, message: "已拒绝该请假申请" });
+    } catch (err) {
+      console.error("[REST] PATCH /api/leaves/:id/reject error:", err);
       res.status(500).json({ success: false, error: "Internal server error" });
     }
   });

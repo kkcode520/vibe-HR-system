@@ -119,6 +119,27 @@ export async function insertLeave(data: InsertLeave) {
   await db.insert(leaves).values(data);
 }
 
+export async function updateLeaveStatus(
+  id: number,
+  status: "approved" | "rejected" | "cancelled",
+  approvedBy?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const updateData: Record<string, unknown> = { status };
+  if (status === "approved" || status === "rejected") {
+    updateData.approvedBy = approvedBy ?? null;
+    updateData.approvedAt = new Date();
+  }
+  await db.update(leaves).set(updateData).where(eq(leaves.id, id));
+}
+
+export async function createLeave(data: InsertLeave) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(leaves).values(data);
+}
+
 export async function getLeaveStats() {
   const db = await getDb();
   if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0 };

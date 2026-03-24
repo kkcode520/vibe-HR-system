@@ -25,3 +25,15 @@
 ## 测试 & 交付
 - [x] 编写 vitest 单元测试（11 个测试全部通过）
 - [x] 保存检查点
+
+## 新增功能（请假申请 & 审批）
+- [x] tRPC mutation：提交请假申请（leaves.submit）
+- [x] tRPC mutation：审批请假（leaves.approve / leaves.reject / leaves.cancel）
+- [x] REST API：POST /api/leaves（提交申请）
+- [x] REST API：PATCH /api/leaves/:id/approve（批准）
+- [x] REST API：PATCH /api/leaves/:id/reject（拒绝）
+- [x] 前端：请假申请表单弹窗（员工选择、类型、日期范围、原因）
+- [x] 前端：请假记录页审批操作按钮（批准/拒绝）
+- [x] 前端：员工详情页审批操作按钮
+- [x] 更新 API 文档页（新增申请和审批接口说明）
+- [x] 编写新功能单元测试（17 个全部通过）

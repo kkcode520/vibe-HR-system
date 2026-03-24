@@ -98,6 +98,94 @@ describe("leaves router", () => {
       leaves.forEach(l => expect(l.employeeId).toBe(empId));
     }
   });
+
+  it("leaves.submit creates a new pending leave record", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const employees = await caller.employees.list({});
+    if (employees.length === 0) return;
+
+    const emp = employees[0];
+    const beforeCount = (await caller.leaves.list({ employeeId: emp.id })).length;
+
+    const result = await caller.leaves.submit({
+      employeeId: emp.id,
+      leaveType: "personal",
+      startDate: "2026-06-01",
+      endDate: "2026-06-01",
+      days: 1,
+      reason: "单元测试申请",
+    });
+
+    expect(result.success).toBe(true);
+    const afterCount = (await caller.leaves.list({ employeeId: emp.id })).length;
+    expect(afterCount).toBe(beforeCount + 1);
+  });
+
+  it("leaves.submit rejects non-existent employee", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.leaves.submit({
+        employeeId: 99999,
+        leaveType: "annual",
+        startDate: "2026-06-01",
+        endDate: "2026-06-05",
+        days: 5,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("leaves.approve changes status from pending to approved", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const pending = await caller.leaves.list({ status: "pending" });
+    if (pending.length === 0) return;
+
+    const target = pending[0];
+    const result = await caller.leaves.approve({ id: target.id, approvedBy: "测试审批员" });
+    expect(result.success).toBe(true);
+
+    // 验证状态已更新
+    const allLeaves = await caller.leaves.list({});
+    const updated = allLeaves.find(l => l.id === target.id);
+    expect(updated?.status).toBe("approved");
+    expect(updated?.approvedBy).toBe("测试审批员");
+  });
+
+  it("leaves.reject changes status from pending to rejected", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const pending = await caller.leaves.list({ status: "pending" });
+    if (pending.length === 0) return;
+
+    const target = pending[0];
+    const result = await caller.leaves.reject({ id: target.id, approvedBy: "测试审批员" });
+    expect(result.success).toBe(true);
+
+    const allLeaves = await caller.leaves.list({});
+    const updated = allLeaves.find(l => l.id === target.id);
+    expect(updated?.status).toBe("rejected");
+  });
+
+  it("leaves.approve throws for non-pending leave", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const approved = await caller.leaves.list({ status: "approved" });
+    if (approved.length === 0) return;
+
+    await expect(
+      caller.leaves.approve({ id: approved[0].id })
+    ).rejects.toThrow();
+  });
+
+  it("leaves.reject throws for non-existent leave", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.leaves.reject({ id: 99999 })
+    ).rejects.toThrow();
+  });
 });
 
 describe("auth router", () => {
