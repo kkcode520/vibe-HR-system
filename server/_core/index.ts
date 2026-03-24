@@ -173,6 +173,85 @@ async function startServer() {
   });
 
   /**
+   * PATCH /api/leaves/approve-by-no
+   * Body: { employeeNo, startDate, approvedBy? }
+   * 通过工号 + 开始日期定位待审批记录并批准，无需知道 leave_id
+   */
+  app.patch("/api/leaves/approve-by-no", async (req, res) => {
+    try {
+      const { employeeNo, startDate, approvedBy } = req.body;
+      if (!employeeNo || !startDate) {
+        return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo, startDate" });
+      }
+      const emp = await getEmployeeByNo(String(employeeNo));
+      if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
+
+      // 查找该员工在指定开始日期的待审批记录
+      const allLeaves = await getAllLeaves({ employeeId: emp.id, status: "pending" });
+      const target = allLeaves.find(l => String(l.startDate).slice(0, 10) === String(startDate).slice(0, 10));
+
+      if (!target) {
+        return res.status(404).json({
+          success: false,
+          error: `未找到 ${emp.name}（${employeeNo}）在 ${startDate} 开始的待审批请假记录`,
+        });
+      }
+
+      await updateLeaveStatus(target.id, "approved", approvedBy ?? "管理员");
+      res.json({
+        success: true,
+        message: `已批准 ${emp.name}（${employeeNo}）从 ${startDate} 开始的请假申请`,
+        leaveId: target.id,
+        employeeName: emp.name,
+        leaveType: target.leaveType,
+        days: target.days,
+      });
+    } catch (err) {
+      console.error("[REST] PATCH /api/leaves/approve-by-no error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
+   * PATCH /api/leaves/reject-by-no
+   * Body: { employeeNo, startDate, approvedBy? }
+   * 通过工号 + 开始日期定位待审批记录并拒绝，无需知道 leave_id
+   */
+  app.patch("/api/leaves/reject-by-no", async (req, res) => {
+    try {
+      const { employeeNo, startDate, approvedBy } = req.body;
+      if (!employeeNo || !startDate) {
+        return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo, startDate" });
+      }
+      const emp = await getEmployeeByNo(String(employeeNo));
+      if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
+
+      const allLeaves = await getAllLeaves({ employeeId: emp.id, status: "pending" });
+      const target = allLeaves.find(l => String(l.startDate).slice(0, 10) === String(startDate).slice(0, 10));
+
+      if (!target) {
+        return res.status(404).json({
+          success: false,
+          error: `未找到 ${emp.name}（${employeeNo}）在 ${startDate} 开始的待审批请假记录`,
+        });
+      }
+
+      await updateLeaveStatus(target.id, "rejected", approvedBy ?? "管理员");
+      res.json({
+        success: true,
+        message: `已拒绝 ${emp.name}（${employeeNo}）从 ${startDate} 开始的请假申请`,
+        leaveId: target.id,
+        employeeName: emp.name,
+        leaveType: target.leaveType,
+        days: target.days,
+      });
+    } catch (err) {
+      console.error("[REST] PATCH /api/leaves/reject-by-no error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
    * PATCH /api/leaves/:id/approve
    * Body: { approvedBy? }
    */

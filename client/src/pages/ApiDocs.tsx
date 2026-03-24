@@ -181,7 +181,7 @@ const endpoints: ApiEndpoint[] = [
   {
     method: "PATCH",
     path: "/api/leaves/:id/approve",
-    title: "批准请假申请",
+    title: "按 ID 批准请假申请",
     description: "将指定 ID 的请假申请状态从 pending 改为 approved。只有待审批状态的申请可以被批准。",
     params: [
       { name: "id", type: "number", required: true, description: "请假记录 ID（路径参数），如 /api/leaves/3/approve" },
@@ -201,7 +201,7 @@ const endpoints: ApiEndpoint[] = [
   {
     method: "PATCH",
     path: "/api/leaves/:id/reject",
-    title: "拒绝请假申请",
+    title: "按 ID 拒绝请假申请",
     description: "将指定 ID 的请假申请状态从 pending 改为 rejected。只有待审批状态的申请可以被拒绝。",
     params: [
       { name: "id", type: "number", required: true, description: "请假记录 ID（路径参数），如 /api/leaves/3/reject" },
@@ -217,6 +217,66 @@ const endpoints: ApiEndpoint[] = [
 • Headers：Content-Type: application/json
 • Body（JSON，可选）：
   { "approvedBy": "{{#var.approver_name#}}" }`,
+  },
+  {
+    method: "PATCH",
+    path: "/api/leaves/approve-by-no",
+    title: "按工号+日期批准请假（推荐）",
+    description: "通过员工工号和请假开始日期定位待审批记录并批准，无需知道 leave_id。适合 Dify 工作流直接处理用户语言输入的审批指令。",
+    params: [
+      { name: "employeeNo", type: "string", required: true, description: "员工工号，如 EMP001" },
+      { name: "startDate", type: "string", required: true, description: "请假开始日期，格式 YYYY-MM-DD，如 2026-07-01" },
+      { name: "approvedBy", type: "string", required: false, description: "审批人姓名，默认为「管理员」" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "已批准 张伟（EMP001）从 2026-07-01 开始的请假申请",
+  "leaveId": 5,
+  "employeeName": "张伟",
+  "leaveType": "annual",
+  "days": "3.0"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：PATCH
+• URL：${BASE_URL}/api/leaves/approve-by-no
+• Headers：Content-Type: application/json
+• Body（JSON）：
+  {
+    "employeeNo": "{{#var.employee_no#}}",
+    "startDate": "{{#var.start_date#}}",
+    "approvedBy": "{{#var.approver_name#}}"
+  }
+✔ 无需先查询 leave_id，直接传工号和日期即可完成审批`,
+  },
+  {
+    method: "PATCH",
+    path: "/api/leaves/reject-by-no",
+    title: "按工号+日期拒绝请假（推荐）",
+    description: "通过员工工号和请假开始日期定位待审批记录并拒绝，无需知道 leave_id。适合 Dify 工作流直接处理用户语言输入的拒绝指令。",
+    params: [
+      { name: "employeeNo", type: "string", required: true, description: "员工工号，如 EMP001" },
+      { name: "startDate", type: "string", required: true, description: "请假开始日期，格式 YYYY-MM-DD，如 2026-07-01" },
+      { name: "approvedBy", type: "string", required: false, description: "审批人姓名，默认为「管理员」" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "已拒绝 张伟（EMP001）从 2026-07-01 开始的请假申请",
+  "leaveId": 5,
+  "employeeName": "张伟",
+  "leaveType": "annual",
+  "days": "3.0"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：PATCH
+• URL：${BASE_URL}/api/leaves/reject-by-no
+• Headers：Content-Type: application/json
+• Body（JSON）：
+  {
+    "employeeNo": "{{#var.employee_no#}}",
+    "startDate": "{{#var.start_date#}}",
+    "approvedBy": "{{#var.approver_name#}}"
+  }
+✔ 无需先查询 leave_id，直接传工号和日期即可完成拒绝`,
   },
 ];
 

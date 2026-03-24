@@ -56,3 +56,9 @@
 - [x] 后端：POST /api/leaves body 中 employeeId 改为 employeeNo
 - [x] 前端：API 文档页更新所有接口参数说明
 - [x] 新增 rest-api.test.ts，27 个测试全部通过
+
+## 按工号审批接口
+- [x] 后端：PATCH /api/leaves/approve-by-no（employeeNo + startDate）
+- [x] 后端：PATCH /api/leaves/reject-by-no（employeeNo + startDate）
+- [x] 前端：API 文档页新增两个接口说明（标注「推荐」）
+- [x] 编写单元测试（30 个全部通过）

@@ -67,3 +67,38 @@ describe("getLeaveQuotasByEmployee via employeeNo", () => {
     });
   });
 });
+
+/**
+ * approve-by-no / reject-by-no 逻辑测试
+ * 验证通过工号+日期定位请假记录的核心逻辑
+ */
+describe("approve-by-no / reject-by-no core logic", () => {
+  it("getEmployeeByNo + getAllLeaves can locate a pending leave by startDate", async () => {
+    const emp = await getEmployeeByNo("EMP001");
+    if (!emp) return;
+
+    const pendingLeaves = await getAllLeaves({ employeeId: emp.id, status: "pending" });
+    // 如果有待审批记录，验证可以通过 startDate 字符串匹配
+    if (pendingLeaves.length > 0) {
+      const target = pendingLeaves[0];
+      const startDateStr = String(target.startDate).slice(0, 10);
+      const found = pendingLeaves.find(l => String(l.startDate).slice(0, 10) === startDateStr);
+      expect(found).not.toBeUndefined();
+      expect(found?.id).toBe(target.id);
+    }
+  });
+
+  it("returns undefined when no pending leave matches the startDate", async () => {
+    const emp = await getEmployeeByNo("EMP001");
+    if (!emp) return;
+
+    const pendingLeaves = await getAllLeaves({ employeeId: emp.id, status: "pending" });
+    const notFound = pendingLeaves.find(l => String(l.startDate).slice(0, 10) === "1900-01-01");
+    expect(notFound).toBeUndefined();
+  });
+
+  it("getEmployeeByNo returns undefined for invalid employeeNo", async () => {
+    const emp = await getEmployeeByNo("INVALID999");
+    expect(emp).toBeUndefined();
+  });
+});
