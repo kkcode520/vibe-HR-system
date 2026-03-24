@@ -81,3 +81,28 @@ export const leaves = mysqlTable("leaves", {
 
 export type Leave = typeof leaves.$inferSelect;
 export type InsertLeave = typeof leaves.$inferInsert;
+
+/**
+ * 员工假期配额表
+ * 记录每位员工每年各类假期的总配额天数
+ */
+export const leaveQuotas = mysqlTable("leaveQuotas", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  year: int("year").notNull(),
+  leaveType: mysqlEnum("leaveType", [
+    "annual",
+    "sick",
+    "personal",
+    "maternity",
+    "paternity",
+    "bereavement",
+    "other",
+  ]).notNull(),
+  totalDays: decimal("totalDays", { precision: 5, scale: 1 }).notNull().default("0"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LeaveQuota = typeof leaveQuotas.$inferSelect;
+export type InsertLeaveQuota = typeof leaveQuotas.$inferInsert;

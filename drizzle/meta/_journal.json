@@ -15,6 +15,13 @@
       "when": 1774276810233,
       "tag": "0001_sturdy_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774355984395,
+      "tag": "0002_cynical_storm",
+      "breakpoints": true
     }
   ]
 }

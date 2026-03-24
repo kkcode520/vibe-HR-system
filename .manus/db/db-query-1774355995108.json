@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `leaveQuotas` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `employeeId` int NOT NULL,\n  `year` int NOT NULL,\n  `leaveType` enum('annual','sick','personal','maternity','paternity','bereavement','other') NOT NULL,\n  `totalDays` decimal(5,1) NOT NULL DEFAULT '0',\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `leaveQuotas_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GsJFDrfdCBP9SHR.root --database kbQ5UArBZx8FYo2NVLuKs7 --execute CREATE TABLE `leaveQuotas` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `employeeId` int NOT NULL,\n  `year` int NOT NULL,\n  `leaveType` enum('annual','sick','personal','maternity','paternity','bereavement','other') NOT NULL,\n  `totalDays` decimal(5,1) NOT NULL DEFAULT '0',\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `leaveQuotas_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 147
+}

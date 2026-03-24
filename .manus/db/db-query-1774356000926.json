@@ -1,0 +1,70 @@
+{
+  "query": "-- 先查询员工 ID\nSELECT id, name, hireDate FROM employees ORDER BY id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GsJFDrfdCBP9SHR.root --database kbQ5UArBZx8FYo2NVLuKs7 --execute -- 先查询员工 ID\nSELECT id, name, hireDate FROM employees ORDER BY id;\n",
+  "rows": [
+    {
+      "id": "1",
+      "name": "张伟",
+      "hireDate": "2021-03-15"
+    },
+    {
+      "id": "2",
+      "name": "李娜",
+      "hireDate": "2019-07-01"
+    },
+    {
+      "id": "3",
+      "name": "王芳",
+      "hireDate": "2020-01-10"
+    },
+    {
+      "id": "4",
+      "name": "刘洋",
+      "hireDate": "2022-06-20"
+    },
+    {
+      "id": "5",
+      "name": "陈静",
+      "hireDate": "2021-09-01"
+    },
+    {
+      "id": "6",
+      "name": "赵磊",
+      "hireDate": "2022-03-08"
+    },
+    {
+      "id": "7",
+      "name": "孙丽",
+      "hireDate": "2018-05-20"
+    },
+    {
+      "id": "8",
+      "name": "周强",
+      "hireDate": "2020-11-15"
+    },
+    {
+      "id": "9",
+      "name": "吴敏",
+      "hireDate": "2023-02-01"
+    },
+    {
+      "id": "10",
+      "name": "郑浩",
+      "hireDate": "2021-08-18"
+    },
+    {
+      "id": "11",
+      "name": "黄婷",
+      "hireDate": "2020-04-12"
+    },
+    {
+      "id": "12",
+      "name": "林峰",
+      "hireDate": "2017-10-01"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\thireDate\n1\t张伟\t2021-03-15\n2\t李娜\t2019-07-01\n3\t王芳\t2020-01-10\n4\t刘洋\t2022-06-20\n5\t陈静\t2021-09-01\n6\t赵磊\t2022-03-08\n7\t孙丽\t2018-05-20\n8\t周强\t2020-11-15\n9\t吴敏\t2023-02-01\n10\t郑浩\t2021-08-18\n11\t黄婷\t2020-04-12\n12\t林峰\t2017-10-01\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

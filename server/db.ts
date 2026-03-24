@@ -1,6 +1,6 @@
 import { eq, and, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, employees, leaves, InsertEmployee, InsertLeave } from "../drizzle/schema";
+import { InsertUser, users, employees, leaves, leaveQuotas, InsertEmployee, InsertLeave } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -150,6 +150,101 @@ export async function getLeaveStats() {
     approved: all.filter(l => l.status === "approved").length,
     rejected: all.filter(l => l.status === "rejected").length,
   };
+}
+
+// ─── Leave Quota Queries ─────────────────────────────────────────────────────
+
+/**
+ * 获取某员工某年的假期配额，并自动计算已使用天数和剩余天数
+ * 已使用天数 = 该年内 approved 状态的请假天数之和
+ */
+export async function getLeaveQuotasByEmployee(employeeId: number, year: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 获取配额
+  const quotas = await db
+    .select()
+    .from(leaveQuotas)
+    .where(and(eq(leaveQuotas.employeeId, employeeId), eq(leaveQuotas.year, year)));
+
+  // 获取该年已批准的请假记录（用于计算已用天数）
+  const approvedLeaves = await db
+    .select()
+    .from(leaves)
+    .where(and(eq(leaves.employeeId, employeeId), eq(leaves.status, "approved")));
+
+  // 按类型汇总已用天数（只统计该年内的请假）
+  const usedMap: Record<string, number> = {};
+  for (const leave of approvedLeaves) {
+    const leaveYear = new Date(String(leave.startDate)).getFullYear();
+    if (leaveYear === year) {
+      const type = leave.leaveType;
+      usedMap[type] = (usedMap[type] ?? 0) + parseFloat(String(leave.days));
+    }
+  }
+
+  return quotas.map(q => {
+    const total = parseFloat(String(q.totalDays));
+    const used = usedMap[q.leaveType] ?? 0;
+    const remaining = Math.max(0, total - used);
+    return {
+      id: q.id,
+      employeeId: q.employeeId,
+      year: q.year,
+      leaveType: q.leaveType,
+      totalDays: total,
+      usedDays: used,
+      remainingDays: remaining,
+    };
+  });
+}
+
+/**
+ * 获取所有员工某年的配额摘要（用于列表页概览）
+ */
+export async function getAllEmployeeQuotaSummary(year: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allEmployees = await db.select().from(employees);
+  const allQuotas = await db
+    .select()
+    .from(leaveQuotas)
+    .where(eq(leaveQuotas.year, year));
+  const approvedLeaves = await db
+    .select()
+    .from(leaves)
+    .where(eq(leaves.status, "approved"));
+
+  // 按员工汇总
+  return allEmployees.map(emp => {
+    const empQuotas = allQuotas.filter(q => q.employeeId === emp.id);
+    const empApproved = approvedLeaves.filter(l => {
+      const leaveYear = new Date(String(l.startDate)).getFullYear();
+      return l.employeeId === emp.id && leaveYear === year;
+    });
+
+    const usedMap: Record<string, number> = {};
+    for (const leave of empApproved) {
+      usedMap[leave.leaveType] = (usedMap[leave.leaveType] ?? 0) + parseFloat(String(leave.days));
+    }
+
+    const quotaDetails = empQuotas.map(q => {
+      const total = parseFloat(String(q.totalDays));
+      const used = usedMap[q.leaveType] ?? 0;
+      return { leaveType: q.leaveType, totalDays: total, usedDays: used, remainingDays: Math.max(0, total - used) };
+    });
+
+    return {
+      employeeId: emp.id,
+      employeeNo: emp.employeeNo,
+      name: emp.name,
+      department: emp.department,
+      position: emp.position,
+      quotas: quotaDetails,
+    };
+  });
 }
 
 export async function getEmployeeStats() {

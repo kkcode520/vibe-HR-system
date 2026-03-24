@@ -7,7 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { getAllEmployees, getEmployeeById, getAllLeaves, getLeaveById, createLeave, updateLeaveStatus } from "../db";
+import { getAllEmployees, getEmployeeById, getAllLeaves, getLeaveById, createLeave, updateLeaveStatus, getLeaveQuotasByEmployee } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -103,6 +103,31 @@ async function startServer() {
       });
     } catch (err) {
       console.error("[REST] GET /api/leaves error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
+   * GET /api/employees/:id/quotas
+   * Query: year (optional, default current year)
+   */
+  app.get("/api/employees/:id/quotas", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ success: false, error: "无效的员工 ID" });
+      const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getFullYear();
+      const emp = await getEmployeeById(id);
+      if (!emp) return res.status(404).json({ success: false, error: "员工不存在" });
+      const quotas = await getLeaveQuotasByEmployee(id, year);
+      res.json({
+        success: true,
+        employeeId: id,
+        employeeName: emp.name,
+        year,
+        data: quotas,
+      });
+    } catch (err) {
+      console.error("[REST] GET /api/employees/:id/quotas error:", err);
       res.status(500).json({ success: false, error: "Internal server error" });
     }
   });

@@ -12,6 +12,8 @@ import {
   getEmployeeStats,
   createLeave,
   updateLeaveStatus,
+  getLeaveQuotasByEmployee,
+  getAllEmployeeQuotaSummary,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 
@@ -56,6 +58,16 @@ export const appRouter = router({
       const depts = Array.from(new Set(all.map(e => e.department)));
       return depts;
     }),
+
+    /**
+     * 获取所有员工的假期配额摘要（列表页用）
+     */
+    quotaSummary: publicProcedure
+      .input(z.object({ year: z.number().int().optional() }).optional())
+      .query(async ({ input }) => {
+        const year = input?.year ?? new Date().getFullYear();
+        return getAllEmployeeQuotaSummary(year);
+      }),
   }),
 
   // ─── Leave Procedures ────────────────────────────────────────────────────────
@@ -73,6 +85,19 @@ export const appRouter = router({
     stats: publicProcedure.query(async () => {
       return getLeaveStats();
     }),
+
+    /**
+     * 获取某员工的假期配额（已用/剩余天数）
+     */
+    quotas: publicProcedure
+      .input(z.object({
+        employeeId: z.number().int().positive(),
+        year: z.number().int().optional(),
+      }))
+      .query(async ({ input }) => {
+        const year = input.year ?? new Date().getFullYear();
+        return getLeaveQuotasByEmployee(input.employeeId, year);
+      }),
 
     /**
      * 提交请假申请

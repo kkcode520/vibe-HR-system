@@ -7,6 +7,7 @@ import { useLocation, useParams } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
 import LeaveApplyDialog from "@/components/LeaveApplyDialog";
+import LeaveQuotaCard from "@/components/LeaveQuotaCard";
 
 const leaveTypeMap: Record<string, string> = {
   annual: "年假",
@@ -144,6 +145,9 @@ export default function EmployeeDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Leave Quota Card */}
+        <LeaveQuotaCard employeeId={id} />
 
         {/* Leave Records */}
         <Card className="border-border/60 shadow-sm">

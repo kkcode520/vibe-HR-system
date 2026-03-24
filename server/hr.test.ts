@@ -188,6 +188,88 @@ describe("leaves router", () => {
   });
 });
 
+describe("leaves.quotas router", () => {
+  it("returns quotas for a valid employee", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const employees = await caller.employees.list({});
+    if (employees.length === 0) return;
+
+    const emp = employees[0];
+    const quotas = await caller.leaves.quotas({ employeeId: emp.id, year: 2026 });
+    expect(Array.isArray(quotas)).toBe(true);
+    // 应包含年假、病假、事假
+    const types = quotas.map(q => q.leaveType);
+    expect(types).toContain("annual");
+    expect(types).toContain("sick");
+    expect(types).toContain("personal");
+  });
+
+  it("each quota has totalDays, usedDays, remainingDays fields", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const employees = await caller.employees.list({});
+    if (employees.length === 0) return;
+
+    const quotas = await caller.leaves.quotas({ employeeId: employees[0].id, year: 2026 });
+    quotas.forEach(q => {
+      expect(typeof q.totalDays).toBe("number");
+      expect(typeof q.usedDays).toBe("number");
+      expect(typeof q.remainingDays).toBe("number");
+      expect(q.remainingDays).toBe(Math.max(0, q.totalDays - q.usedDays));
+    });
+  });
+
+  it("employees.quotaSummary returns all employees", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const employees = await caller.employees.list({});
+    const summary = await caller.employees.quotaSummary({ year: 2026 });
+    expect(summary.length).toBe(employees.length);
+    summary.forEach(s => {
+      expect(typeof s.employeeId).toBe("number");
+      expect(typeof s.name).toBe("string");
+      expect(Array.isArray(s.quotas)).toBe(true);
+    });
+  });
+
+  it("usedDays increases after submitting and approving a leave", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const employees = await caller.employees.list({});
+    if (employees.length === 0) return;
+
+    const emp = employees[0];
+    const beforeQuotas = await caller.leaves.quotas({ employeeId: emp.id, year: 2026 });
+    const beforeAnnual = beforeQuotas.find(q => q.leaveType === "annual");
+
+    // 提交请假申请
+    await caller.leaves.submit({
+      employeeId: emp.id,
+      leaveType: "annual",
+      startDate: "2026-09-01",
+      endDate: "2026-09-02",
+      days: 2,
+      reason: "配额测试",
+    });
+
+    // 获取新提交的请假记录并批准
+    const allLeaves = await caller.leaves.list({ employeeId: emp.id, status: "pending" });
+    const newLeave = allLeaves.find(l => l.reason === "配额测试");
+    if (newLeave) {
+      await caller.leaves.approve({ id: newLeave.id, approvedBy: "测试审批员" });
+    }
+
+    // 验证已用天数增加
+    const afterQuotas = await caller.leaves.quotas({ employeeId: emp.id, year: 2026 });
+    const afterAnnual = afterQuotas.find(q => q.leaveType === "annual");
+    if (beforeAnnual && afterAnnual && newLeave) {
+      expect(afterAnnual.usedDays).toBe(beforeAnnual.usedDays + 2);
+      expect(afterAnnual.remainingDays).toBe(beforeAnnual.remainingDays - 2);
+    }
+  });
+});
+
 describe("auth router", () => {
   it("auth.me returns null for unauthenticated user", async () => {
     const ctx = createPublicContext();
