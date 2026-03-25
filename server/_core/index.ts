@@ -70,43 +70,40 @@ async function startServer() {
    * GET /api/employees/:employeeNo
    * Returns employee info + leave records (lookup by employeeNo)
    */
-  app.get("/api/employees/:employeeNo/quotas", async (req, res) => {
+  // GET /api/employees/:employeeNo/quotas  OR  GET /api/quotas?employee_no=xxx[&year=2026]
+  const handleQuotas = async (req: express.Request, res: express.Response) => {
     try {
-      const { employeeNo } = req.params;
+      const employeeNo = (req.params.employeeNo ?? req.query.employee_no) as string;
+      if (!employeeNo) return res.status(400).json({ success: false, error: "缺少必填参数 employee_no" });
       const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getFullYear();
       const emp = await getEmployeeByNo(employeeNo);
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
       const quotas = await getLeaveQuotasByEmployee(emp.id, year);
-      res.json({
-        success: true,
-        employeeNo: emp.employeeNo,
-        employeeName: emp.name,
-        year,
-        data: quotas,
-      });
+      res.json({ success: true, employeeNo: emp.employeeNo, employeeName: emp.name, year, data: quotas });
     } catch (err) {
-      console.error("[REST] GET /api/employees/:employeeNo/quotas error:", err);
+      console.error("[REST] GET quotas error:", err);
       res.status(500).json({ success: false, error: "Internal server error" });
     }
-  });
+  };
+  app.get("/api/employees/:employeeNo/quotas", handleQuotas);
+  app.get("/api/quotas", handleQuotas); // Query 参数方式：GET /api/quotas?employee_no=EMP001
 
-  app.get("/api/employees/:employeeNo", async (req, res) => {
+  // GET /api/employees/:employeeNo  OR  GET /api/employee?employee_no=xxx
+  const handleEmployeeDetail = async (req: express.Request, res: express.Response) => {
     try {
-      const { employeeNo } = req.params;
+      const employeeNo = (req.params.employeeNo ?? req.query.employee_no) as string;
+      if (!employeeNo) return res.status(400).json({ success: false, error: "缺少必填参数 employee_no" });
       const emp = await getEmployeeByNo(employeeNo);
-      if (!emp) {
-        return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
-      }
+      if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
       const leaveRecords = await getAllLeaves({ employeeId: emp.id });
-      res.json({
-        success: true,
-        data: { ...emp, leaves: leaveRecords },
-      });
+      res.json({ success: true, data: { ...emp, leaves: leaveRecords } });
     } catch (err) {
-      console.error("[REST] GET /api/employees/:employeeNo error:", err);
+      console.error("[REST] GET employee detail error:", err);
       res.status(500).json({ success: false, error: "Internal server error" });
     }
-  });
+  };
+  app.get("/api/employees/:employeeNo", handleEmployeeDetail);
+  app.get("/api/employee", handleEmployeeDetail); // Query 参数方式：GET /api/employee?employee_no=EMP001
 
   /**
    * GET /api/leaves
@@ -139,18 +136,28 @@ async function startServer() {
    * POST /api/leaves
    * Body: { employeeNo, leaveType, startDate, endDate, days, reason? }
    */
+  // POST /api/leaves
+  // Body OR Query: employee_no, leave_type, start_date, end_date, days, reason
+  // 支持 body JSON 或 Query 参数两种方式传参
   app.post("/api/leaves", async (req, res) => {
     try {
-      const { employeeNo, leaveType, startDate, endDate, days, reason } = req.body;
+      // 优先取 body，如果 body 中没有则尝试从 Query 中取
+      const q = req.query as Record<string, string>;
+      const employeeNo  = req.body?.employeeNo  ?? q.employee_no;
+      const leaveType   = req.body?.leaveType   ?? q.leave_type;
+      const startDate   = req.body?.startDate   ?? q.start_date;
+      const endDate     = req.body?.endDate     ?? q.end_date;
+      const days        = req.body?.days        ?? q.days;
+      const reason      = req.body?.reason      ?? q.reason;
       if (!employeeNo || !leaveType || !startDate || !endDate || !days) {
         return res.status(400).json({
           success: false,
-          error: "缺少必填字段：employeeNo, leaveType, startDate, endDate, days",
+          error: "缺少必填字段：employeeNo(或 employee_no), leaveType(或 leave_type), startDate(或 start_date), endDate(或 end_date), days",
         });
       }
       const emp = await getEmployeeByNo(String(employeeNo));
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
-      if (startDate > endDate) return res.status(400).json({ success: false, error: "开始日期不能晚于结束日期" });
+      if (startDate > endDate) return res.status(400).json({ success: false, error: "开始日期不能晒于结束日期" });
       await createLeave({
         employeeId: emp.id,
         leaveType,
@@ -225,9 +232,12 @@ async function startServer() {
    */
   app.patch("/api/leaves/approve-by-no", async (req, res) => {
     try {
-      const { employeeNo, startDate, approvedBy } = req.body;
+      const q = req.query as Record<string, string>;
+      const employeeNo = req.body?.employeeNo ?? q.employee_no;
+      const startDate  = req.body?.startDate  ?? q.start_date;
+      const approvedBy = req.body?.approvedBy ?? q.approved_by;
       if (!employeeNo || !startDate) {
-        return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo, startDate" });
+        return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo(或 employee_no), startDate(或 start_date)" });
       }
       const emp = await getEmployeeByNo(String(employeeNo));
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
@@ -265,9 +275,12 @@ async function startServer() {
    */
   app.patch("/api/leaves/reject-by-no", async (req, res) => {
     try {
-      const { employeeNo, startDate, approvedBy } = req.body;
+      const q = req.query as Record<string, string>;
+      const employeeNo = req.body?.employeeNo ?? q.employee_no;
+      const startDate  = req.body?.startDate  ?? q.start_date;
+      const approvedBy = req.body?.approvedBy ?? q.approved_by;
       if (!employeeNo || !startDate) {
-        return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo, startDate" });
+        return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo(或 employee_no), startDate(或 start_date)" });
       }
       const emp = await getEmployeeByNo(String(employeeNo));
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });

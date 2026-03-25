@@ -52,11 +52,11 @@ const endpoints: ApiEndpoint[] = [
   },
   {
     method: "GET",
-    path: "/api/employees/:employeeNo",
-    title: "按工号查询员工详情",
-    description: "根据员工工号返回该员工的详细信息，包含其所有请假记录。",
+    path: "/api/employee?employee_no=xxx",
+    title: "按工号查询员工详情（Query 参数）",
+    description: "根据员工工号返回该员工的详细信息，包含其所有请假记录。同时支持路径参数方式: /api/employees/:employeeNo",
     params: [
-      { name: "employeeNo", type: "string", required: true, description: "员工工号（路径参数），如 /api/employees/EMP001" },
+      { name: "employee_no", type: "string", required: true, description: "Query 参数，员工工号，如 ?employee_no=EMP001" },
     ],
     responseExample: `{
   "success": true,
@@ -84,14 +84,62 @@ const endpoints: ApiEndpoint[] = [
 }`,
     difyExample: `在 Dify 工作流中添加 HTTP 节点：
 • 方法：GET
+• URL：${BASE_URL}/api/employee?employee_no={{#var.employee_no#}}
+• 无需额外设置，工号作为 Query 参数传入`,
+  },
+  {
+    method: "GET",
+    path: "/api/employees/:employeeNo",
+    title: "按工号查询员工详情（路径参数）",
+    description: "根据员工工号返回该员工的详细信息，包含其所有请假记录。工号拼接在 URL 路径中。",
+    params: [
+      { name: "employeeNo", type: "string", required: true, description: "员工工号（路径参数），如 /api/employees/EMP001" },
+    ],
+    responseExample: `{
+  "success": true,
+  "data": {
+    "id": 1,
+    "employeeNo": "EMP001",
+    "name": "张伟",
+    "department": "技术部",
+    "leaves": []
+  }
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：GET
 • URL：${BASE_URL}/api/employees/{{#var.employee_no#}}
-• 无需额外参数，工号直接拼接在 URL 中`,
+• 工号直接拼接在 URL 路径中`,
+  },
+  {
+    method: "GET",
+    path: "/api/quotas?employee_no=xxx",
+    title: "查询员工假期配额（Query 参数）",
+    description: "根据员工工号返回该员工当年各类假期的总配额、已用天数和剩余天数。同时支持路径参数方式: /api/employees/:employeeNo/quotas",
+    params: [
+      { name: "employee_no", type: "string", required: true, description: "Query 参数，员工工号，如 ?employee_no=EMP001" },
+      { name: "year", type: "number", required: false, description: "查询年份，默认为当前年份，如 year=2026" },
+    ],
+    responseExample: `{
+  "success": true,
+  "employeeNo": "EMP001",
+  "employeeName": "张伟",
+  "year": 2026,
+  "data": [
+    { "leaveType": "annual", "totalDays": 15, "usedDays": 5, "remainingDays": 10 },
+    { "leaveType": "sick",   "totalDays": 15, "usedDays": 0, "remainingDays": 15 },
+    { "leaveType": "personal","totalDays": 10, "usedDays": 1, "remainingDays": 9 }
+  ]
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：GET
+• URL：${BASE_URL}/api/quotas?employee_no={{#var.employee_no#}}
+• 可选 Query Params：year=2026`,
   },
   {
     method: "GET",
     path: "/api/employees/:employeeNo/quotas",
-    title: "查询员工假期配额",
-    description: "根据员工工号返回该员工当年各类假期的总配额、已用天数和剩余天数。",
+    title: "查询员工假期配额（路径参数）",
+    description: "根据员工工号返回该员工当年各类假期的总配额、已用天数和剩余天数。工号拼接在 URL 路径中。",
     params: [
       { name: "employeeNo", type: "string", required: true, description: "员工工号（路径参数），如 /api/employees/EMP001/quotas" },
       { name: "year", type: "number", required: false, description: "查询年份，默认为当前年份，如 year=2026" },
@@ -110,7 +158,7 @@ const endpoints: ApiEndpoint[] = [
     difyExample: `在 Dify 工作流中添加 HTTP 节点：
 • 方法：GET
 • URL：${BASE_URL}/api/employees/{{#var.employee_no#}}/quotas
-• 可选 Query Params：year=2026`,
+• 工号拼接在 URL 路径中`,
   },
   {
     method: "GET",
@@ -151,12 +199,12 @@ const endpoints: ApiEndpoint[] = [
     method: "POST",
     path: "/api/leaves",
     title: "提交请假申请",
-    description: "提交一条新的请假申请，初始状态为待审批（pending）。请求体需为 JSON 格式。",
+    description: "提交一条新的请假申请，初始状态为待审批（pending）。支持 JSON Body 或 Query 参数两种方式传参。",
     params: [
-      { name: "employeeNo", type: "string", required: true, description: "员工工号，如 EMP001" },
-      { name: "leaveType", type: "string", required: true, description: "请假类型：annual / sick / personal / maternity / paternity / bereavement / other" },
-      { name: "startDate", type: "string", required: true, description: "开始日期，格式 YYYY-MM-DD，如 2025-07-01" },
-      { name: "endDate", type: "string", required: true, description: "结束日期，格式 YYYY-MM-DD，如 2025-07-05" },
+      { name: "employeeNo / employee_no", type: "string", required: true, description: "员工工号，如 EMP001（body 用 employeeNo，Query 用 employee_no）" },
+      { name: "leaveType / leave_type", type: "string", required: true, description: "请假类型：annual / sick / personal / maternity / paternity / bereavement / other" },
+      { name: "startDate / start_date", type: "string", required: true, description: "开始日期，格式 YYYY-MM-DD" },
+      { name: "endDate / end_date", type: "string", required: true, description: "结束日期，格式 YYYY-MM-DD" },
       { name: "days", type: "number", required: true, description: "请假天数，如 5" },
       { name: "reason", type: "string", required: false, description: "申请原因，最多 500 字" },
     ],
@@ -176,7 +224,9 @@ const endpoints: ApiEndpoint[] = [
     "endDate": "{{#var.end_date#}}",
     "days": {{#var.days#}},
     "reason": "{{#var.reason#}}"
-  }`,
+  }
+或者用 Query 参数方式（无需 Body）：
+• URL：${BASE_URL}/api/leaves?employee_no={{#var.employee_no#}}&leave_type=annual&start_date={{#var.start_date#}}&end_date={{#var.end_date#}}&days={{#var.days#}}`,
   },
   {
     method: "PATCH",
@@ -262,11 +312,11 @@ const endpoints: ApiEndpoint[] = [
     method: "PATCH",
     path: "/api/leaves/approve-by-no",
     title: "按工号+日期批准请假（推荐）",
-    description: "通过员工工号和请假开始日期定位待审批记录并批准，无需知道 leave_id。适合 Dify 工作流直接处理用户语言输入的审批指令。",
+    description: "通过员工工号和请假开始日期定位待审批记录并批准，无需知道 leave_id。支持 JSON Body 或 Query 参数两种方式。",
     params: [
-      { name: "employeeNo", type: "string", required: true, description: "员工工号，如 EMP001" },
-      { name: "startDate", type: "string", required: true, description: "请假开始日期，格式 YYYY-MM-DD，如 2026-07-01" },
-      { name: "approvedBy", type: "string", required: false, description: "审批人姓名，默认为「管理员」" },
+      { name: "employeeNo / employee_no", type: "string", required: true, description: "员工工号，如 EMP001（body 用 employeeNo，Query 用 employee_no）" },
+      { name: "startDate / start_date", type: "string", required: true, description: "请假开始日期，格式 YYYY-MM-DD（body 用 startDate，Query 用 start_date）" },
+      { name: "approvedBy / approved_by", type: "string", required: false, description: "审批人姓名，默认为「管理员」" },
     ],
     responseExample: `{
   "success": true,
@@ -277,26 +327,27 @@ const endpoints: ApiEndpoint[] = [
   "days": "3.0"
 }`,
     difyExample: `在 Dify 工作流中添加 HTTP 节点：
-• 方法：PATCH
-• URL：${BASE_URL}/api/leaves/approve-by-no
-• Headers：Content-Type: application/json
-• Body（JSON）：
+- 方法：PATCH
+- URL：${BASE_URL}/api/leaves/approve-by-no
+- Headers：Content-Type: application/json
+- Body（JSON）：
   {
     "employeeNo": "{{#var.employee_no#}}",
     "startDate": "{{#var.start_date#}}",
-    "approvedBy": "{{#var.approver_name#}}"
+    "approvedBy": "张经理"
   }
-✔ 无需先查询 leave_id，直接传工号和日期即可完成审批`,
+或者用 Query 参数（无需 Body）：
+- URL：${BASE_URL}/api/leaves/approve-by-no?employee_no={{#var.employee_no#}}&start_date={{#var.start_date#}}`,
   },
   {
     method: "PATCH",
     path: "/api/leaves/reject-by-no",
     title: "按工号+日期拒绝请假（推荐）",
-    description: "通过员工工号和请假开始日期定位待审批记录并拒绝，无需知道 leave_id。适合 Dify 工作流直接处理用户语言输入的拒绝指令。",
+    description: "通过员工工号和请假开始日期定位待审批记录并拒绝，无需知道 leave_id。支持 JSON Body 或 Query 参数两种方式。",
     params: [
-      { name: "employeeNo", type: "string", required: true, description: "员工工号，如 EMP001" },
-      { name: "startDate", type: "string", required: true, description: "请假开始日期，格式 YYYY-MM-DD，如 2026-07-01" },
-      { name: "approvedBy", type: "string", required: false, description: "审批人姓名，默认为「管理员」" },
+      { name: "employeeNo / employee_no", type: "string", required: true, description: "员工工号，如 EMP001（body 用 employeeNo，Query 用 employee_no）" },
+      { name: "startDate / start_date", type: "string", required: true, description: "请假开始日期，格式 YYYY-MM-DD（body 用 startDate，Query 用 start_date）" },
+      { name: "approvedBy / approved_by", type: "string", required: false, description: "审批人姓名，默认为「管理员」" },
     ],
     responseExample: `{
   "success": true,

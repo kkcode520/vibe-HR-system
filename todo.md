@@ -67,3 +67,12 @@
 - [x] 后端：PATCH /api/leaves/approve?leave_id=xxx
 - [x] 后端：PATCH /api/leaves/reject?leave_id=xxx
 - [x] 前端：API 文档页新增说明
+
+## 全接口 Query 参数支持
+- [x] GET /api/employees 已支持 Query 参数，无需改动
+- [x] GET /api/employee?employee_no=xxx （新增）
+- [x] GET /api/quotas?employee_no=xxx （新增）
+- [x] POST /api/leaves 支持 body 或 Query 参数两种方式
+- [x] PATCH /api/leaves/approve-by-no 支持 body 或 Query 参数
+- [x] PATCH /api/leaves/reject-by-no 支持 body 或 Query 参数
+- [x] 更新 API 文档页，所有接口均展示 Query 参数方式
