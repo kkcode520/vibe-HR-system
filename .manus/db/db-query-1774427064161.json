@@ -1,0 +1,15 @@
+{
+  "query": "SELECT MIN(id) as min_id, MAX(id) as max_id, COUNT(*) as total FROM leaves;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GsJFDrfdCBP9SHR.root --database kbQ5UArBZx8FYo2NVLuKs7 --execute SELECT MIN(id) as min_id, MAX(id) as max_id, COUNT(*) as total FROM leaves;",
+  "rows": [
+    {
+      "min_id": "1",
+      "max_id": "120001",
+      "total": "36"
+    }
+  ],
+  "messages": [],
+  "stdout": "min_id\tmax_id\ttotal\n1\t120001\t36\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

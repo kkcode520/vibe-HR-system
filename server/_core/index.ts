@@ -173,6 +173,52 @@ async function startServer() {
   });
 
   /**
+   * PATCH /api/leaves/approve?leave_id=xxx
+   * Query param: leave_id
+   * Body: { approvedBy? }
+   * 支持 Query 参数方式指定 leave_id
+   */
+  app.patch("/api/leaves/approve", async (req, res) => {
+    try {
+      const id = parseInt(String(req.query.leave_id), 10);
+      if (isNaN(id)) return res.status(400).json({ success: false, error: "缺少或无效的 leave_id 参数" });
+      const leave = await getLeaveById(id);
+      if (!leave) return res.status(404).json({ success: false, error: `请假记录 ${id} 不存在` });
+      if (leave.status !== "pending")
+        return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法审批` });
+      const approvedBy = req.body?.approvedBy ?? "管理员";
+      await updateLeaveStatus(id, "approved", approvedBy);
+      res.json({ success: true, message: `已批准请假申请 #${id}` });
+    } catch (err) {
+      console.error("[REST] PATCH /api/leaves/approve error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
+   * PATCH /api/leaves/reject?leave_id=xxx
+   * Query param: leave_id
+   * Body: { approvedBy? }
+   * 支持 Query 参数方式指定 leave_id
+   */
+  app.patch("/api/leaves/reject", async (req, res) => {
+    try {
+      const id = parseInt(String(req.query.leave_id), 10);
+      if (isNaN(id)) return res.status(400).json({ success: false, error: "缺少或无效的 leave_id 参数" });
+      const leave = await getLeaveById(id);
+      if (!leave) return res.status(404).json({ success: false, error: `请假记录 ${id} 不存在` });
+      if (leave.status !== "pending")
+        return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法拒绝` });
+      const approvedBy = req.body?.approvedBy ?? "管理员";
+      await updateLeaveStatus(id, "rejected", approvedBy);
+      res.json({ success: true, message: `已拒绝请假申请 #${id}` });
+    } catch (err) {
+      console.error("[REST] PATCH /api/leaves/reject error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  /**
    * PATCH /api/leaves/approve-by-no
    * Body: { employeeNo, startDate, approvedBy? }
    * 通过工号 + 开始日期定位待审批记录并批准，无需知道 leave_id

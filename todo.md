@@ -62,3 +62,8 @@
 - [x] 后端：PATCH /api/leaves/reject-by-no（employeeNo + startDate）
 - [x] 前端：API 文档页新增两个接口说明（标注「推荐」）
 - [x] 编写单元测试（30 个全部通过）
+
+## Query 参数审批接口
+- [x] 后端：PATCH /api/leaves/approve?leave_id=xxx
+- [x] 后端：PATCH /api/leaves/reject?leave_id=xxx
+- [x] 前端：API 文档页新增说明

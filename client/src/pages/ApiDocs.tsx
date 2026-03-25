@@ -180,6 +180,46 @@ const endpoints: ApiEndpoint[] = [
   },
   {
     method: "PATCH",
+    path: "/api/leaves/approve?leave_id=xxx",
+    title: "按 leave_id 批准请假（Query 参数）",
+    description: "通过 Query 参数传入 leave_id 批准请假申请，无需将 ID 拼接到 URL 路径中。",
+    params: [
+      { name: "leave_id", type: "number", required: true, description: "Query 参数，请假记录 ID，如 ?leave_id=120001" },
+      { name: "approvedBy", type: "string", required: false, description: "审批人姓名（请求体 JSON），默认为「管理员」" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "已批准请假申请 #120001"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：PATCH
+• URL：${BASE_URL}/api/leaves/approve?leave_id={{#var.leave_id#}}
+• Headers：Content-Type: application/json
+• Body（JSON，可选）：
+  { "approvedBy": "{{#var.approver_name#}}" }`,
+  },
+  {
+    method: "PATCH",
+    path: "/api/leaves/reject?leave_id=xxx",
+    title: "按 leave_id 拒绝请假（Query 参数）",
+    description: "通过 Query 参数传入 leave_id 拒绝请假申请，无需将 ID 拼接到 URL 路径中。",
+    params: [
+      { name: "leave_id", type: "number", required: true, description: "Query 参数，请假记录 ID，如 ?leave_id=120001" },
+      { name: "approvedBy", type: "string", required: false, description: "审批人姓名（请求体 JSON），默认为「管理员」" },
+    ],
+    responseExample: `{
+  "success": true,
+  "message": "已拒绝请假申请 #120001"
+}`,
+    difyExample: `在 Dify 工作流中添加 HTTP 节点：
+• 方法：PATCH
+• URL：${BASE_URL}/api/leaves/reject?leave_id={{#var.leave_id#}}
+• Headers：Content-Type: application/json
+• Body（JSON，可选）：
+  { "approvedBy": "{{#var.approver_name#}}" }`,
+  },
+  {
+    method: "PATCH",
     path: "/api/leaves/:id/approve",
     title: "按 ID 批准请假申请",
     description: "将指定 ID 的请假申请状态从 pending 改为 approved。只有待审批状态的申请可以被批准。",
