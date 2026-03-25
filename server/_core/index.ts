@@ -143,8 +143,8 @@ async function startServer() {
     try {
       // 优先取 body，如果 body 中没有则尝试从 Query 中取
       const q = req.query as Record<string, string>;
-      const employeeNo  = String(req.body?.employeeNo  ?? q.employee_no  ?? "").trim();
-      const leaveType   = String(req.body?.leaveType   ?? q.leave_type   ?? "").trim();
+      const employeeNo  = String(req.body?.employeeNo  ?? q.employee_no  ?? "").trim().toUpperCase();
+      const leaveType   = String(req.body?.leaveType   ?? q.leave_type   ?? "").trim().toLowerCase();
       const startDateRaw = String(req.body?.startDate  ?? q.start_date   ?? "").trim();
       const endDateRaw   = String(req.body?.endDate    ?? q.end_date     ?? "").trim();
       const daysRaw      = req.body?.days ?? q.days;
@@ -252,7 +252,7 @@ async function startServer() {
   app.patch("/api/leaves/approve-by-no", async (req, res) => {
     try {
       const q = req.query as Record<string, string>;
-      const employeeNo = String(req.body?.employeeNo ?? q.employee_no ?? "").trim();
+      const employeeNo = String(req.body?.employeeNo ?? q.employee_no ?? "").trim().toUpperCase();
       const startDateRaw = String(req.body?.startDate ?? q.start_date ?? "").trim();
       const approvedBy = String(req.body?.approvedBy ?? q.approved_by ?? "管理员").trim();
       if (!employeeNo || !startDateRaw) {
@@ -297,7 +297,7 @@ async function startServer() {
   app.patch("/api/leaves/reject-by-no", async (req, res) => {
     try {
       const q = req.query as Record<string, string>;
-      const employeeNo = String(req.body?.employeeNo ?? q.employee_no ?? "").trim();
+      const employeeNo = String(req.body?.employeeNo ?? q.employee_no ?? "").trim().toUpperCase();
       const startDateRaw = String(req.body?.startDate ?? q.start_date ?? "").trim();
       const approvedBy = String(req.body?.approvedBy ?? q.approved_by ?? "管理员").trim();
       if (!employeeNo || !startDateRaw) {

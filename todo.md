@@ -83,3 +83,8 @@
 - [x] PATCH approve-by-no / reject-by-no：employeeNo/startDate 自动 trim，日期支持 / 分隔符
 - [x] GET 接口：year 字符串转数字（原已支持）
 - [x] 30 个单元测试全部通过
+
+## 参数大小写兼容
+- [x] employeeNo 查询时自动转大写（EMP007/emp007/Emp007 均可匹配）
+- [x] leaveType 查询时自动转小写（Sick/SICK/sick 均可匹配）
+- [x] 30 个单元测试全部通过

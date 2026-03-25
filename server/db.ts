@@ -82,7 +82,9 @@ export async function getEmployeeById(id: number) {
 export async function getEmployeeByNo(employeeNo: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(employees).where(eq(employees.employeeNo, employeeNo)).limit(1);
+  // 工号自动转大写，兼容 Dify 传入 emp007 / Emp007 / EMP007 均能匹配
+  const normalizedNo = employeeNo.trim().toUpperCase();
+  const result = await db.select().from(employees).where(eq(employees.employeeNo, normalizedNo)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -100,8 +102,9 @@ export async function getAllLeaves(opts?: { employeeId?: number; status?: string
   let query = db.select().from(leaves).$dynamic();
   const conditions = [];
   if (opts?.employeeId) conditions.push(eq(leaves.employeeId, opts.employeeId));
-  if (opts?.status) conditions.push(eq(leaves.status, opts.status as "pending" | "approved" | "rejected" | "cancelled"));
-  if (opts?.leaveType) conditions.push(eq(leaves.leaveType, opts.leaveType as "annual" | "sick" | "personal" | "maternity" | "paternity" | "bereavement" | "other"));
+  // status 和 leaveType 自动转小写，兼容 Dify 传入大小写不一致的情况
+  if (opts?.status) conditions.push(eq(leaves.status, opts.status.trim().toLowerCase() as "pending" | "approved" | "rejected" | "cancelled"));
+  if (opts?.leaveType) conditions.push(eq(leaves.leaveType, opts.leaveType.trim().toLowerCase() as "annual" | "sick" | "personal" | "maternity" | "paternity" | "bereavement" | "other"));
   if (conditions.length > 0) query = query.where(and(...conditions));
   return query.orderBy(leaves.createdAt);
 }
