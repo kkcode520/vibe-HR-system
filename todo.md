@@ -76,3 +76,10 @@
 - [x] PATCH /api/leaves/approve-by-no 支持 body 或 Query 参数
 - [x] PATCH /api/leaves/reject-by-no 支持 body 或 Query 参数
 - [x] 更新 API 文档页，所有接口均展示 Query 参数方式
+
+## 接口字段类型兼容处理（Dify 友好）
+- [x] POST /api/leaves：days 字符串转数字，日期支持 / 分隔符，所有字段自动 trim
+- [x] PATCH approve/reject（所有方式）：leave_id 字符串转数字，同时支持 body.leaveId
+- [x] PATCH approve-by-no / reject-by-no：employeeNo/startDate 自动 trim，日期支持 / 分隔符
+- [x] GET 接口：year 字符串转数字（原已支持）
+- [x] 30 个单元测试全部通过

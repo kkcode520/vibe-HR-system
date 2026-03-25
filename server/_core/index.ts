@@ -143,28 +143,43 @@ async function startServer() {
     try {
       // 优先取 body，如果 body 中没有则尝试从 Query 中取
       const q = req.query as Record<string, string>;
-      const employeeNo  = req.body?.employeeNo  ?? q.employee_no;
-      const leaveType   = req.body?.leaveType   ?? q.leave_type;
-      const startDate   = req.body?.startDate   ?? q.start_date;
-      const endDate     = req.body?.endDate     ?? q.end_date;
-      const days        = req.body?.days        ?? q.days;
-      const reason      = req.body?.reason      ?? q.reason;
-      if (!employeeNo || !leaveType || !startDate || !endDate || !days) {
+      const employeeNo  = String(req.body?.employeeNo  ?? q.employee_no  ?? "").trim();
+      const leaveType   = String(req.body?.leaveType   ?? q.leave_type   ?? "").trim();
+      const startDateRaw = String(req.body?.startDate  ?? q.start_date   ?? "").trim();
+      const endDateRaw   = String(req.body?.endDate    ?? q.end_date     ?? "").trim();
+      const daysRaw      = req.body?.days ?? q.days;
+      const reason       = String(req.body?.reason ?? q.reason ?? "").trim() || null;
+
+      if (!employeeNo || !leaveType || !startDateRaw || !endDateRaw || daysRaw === undefined || daysRaw === "") {
         return res.status(400).json({
           success: false,
           error: "缺少必填字段：employeeNo(或 employee_no), leaveType(或 leave_type), startDate(或 start_date), endDate(或 end_date), days",
         });
       }
-      const emp = await getEmployeeByNo(String(employeeNo));
+
+      // 类型兼容：days 统一转为数字再转字符串，兼容 Dify 传入字符串 "5" 或数字 5
+      const daysNum = parseFloat(String(daysRaw));
+      if (isNaN(daysNum) || daysNum <= 0) {
+        return res.status(400).json({ success: false, error: "days 必须为正数，如 1 或 0.5" });
+      }
+
+      // 日期格式兼容：支持 "2026-04-01" 或 "2026/04/01" 等常见格式
+      const startDate = new Date(startDateRaw.replace(/\//g, "-"));
+      const endDate   = new Date(endDateRaw.replace(/\//g, "-"));
+      if (isNaN(startDate.getTime())) return res.status(400).json({ success: false, error: `startDate 格式无效：${startDateRaw}，请使用 YYYY-MM-DD` });
+      if (isNaN(endDate.getTime()))   return res.status(400).json({ success: false, error: `endDate 格式无效：${endDateRaw}，请使用 YYYY-MM-DD` });
+      if (startDate > endDate) return res.status(400).json({ success: false, error: "开始日期不能晚于结束日期" });
+
+      const emp = await getEmployeeByNo(employeeNo);
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
-      if (startDate > endDate) return res.status(400).json({ success: false, error: "开始日期不能晒于结束日期" });
+
       await createLeave({
         employeeId: emp.id,
-        leaveType,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        days: String(days),
-        reason: reason ?? null,
+        leaveType: leaveType as "annual" | "sick" | "personal" | "maternity" | "paternity" | "bereavement" | "other",
+        startDate,
+        endDate,
+        days: String(daysNum),
+        reason,
         status: "pending",
       });
       res.status(201).json({
@@ -187,13 +202,15 @@ async function startServer() {
    */
   app.patch("/api/leaves/approve", async (req, res) => {
     try {
-      const id = parseInt(String(req.query.leave_id), 10);
+      // 兼容字符串类型的 leave_id（Dify 可能传入 "120001"）
+      const rawId = req.query.leave_id ?? req.body?.leave_id ?? req.body?.leaveId;
+      const id = parseInt(String(rawId), 10);
       if (isNaN(id)) return res.status(400).json({ success: false, error: "缺少或无效的 leave_id 参数" });
       const leave = await getLeaveById(id);
       if (!leave) return res.status(404).json({ success: false, error: `请假记录 ${id} 不存在` });
       if (leave.status !== "pending")
         return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法审批` });
-      const approvedBy = req.body?.approvedBy ?? "管理员";
+      const approvedBy = String(req.body?.approvedBy ?? req.query.approved_by ?? "管理员").trim();
       await updateLeaveStatus(id, "approved", approvedBy);
       res.json({ success: true, message: `已批准请假申请 #${id}` });
     } catch (err) {
@@ -210,13 +227,15 @@ async function startServer() {
    */
   app.patch("/api/leaves/reject", async (req, res) => {
     try {
-      const id = parseInt(String(req.query.leave_id), 10);
+      // 兼容字符串类型的 leave_id（Dify 可能传入 "120001"）
+      const rawId = req.query.leave_id ?? req.body?.leave_id ?? req.body?.leaveId;
+      const id = parseInt(String(rawId), 10);
       if (isNaN(id)) return res.status(400).json({ success: false, error: "缺少或无效的 leave_id 参数" });
       const leave = await getLeaveById(id);
       if (!leave) return res.status(404).json({ success: false, error: `请假记录 ${id} 不存在` });
       if (leave.status !== "pending")
         return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法拒绝` });
-      const approvedBy = req.body?.approvedBy ?? "管理员";
+      const approvedBy = String(req.body?.approvedBy ?? req.query.approved_by ?? "管理员").trim();
       await updateLeaveStatus(id, "rejected", approvedBy);
       res.json({ success: true, message: `已拒绝请假申请 #${id}` });
     } catch (err) {
@@ -233,30 +252,32 @@ async function startServer() {
   app.patch("/api/leaves/approve-by-no", async (req, res) => {
     try {
       const q = req.query as Record<string, string>;
-      const employeeNo = req.body?.employeeNo ?? q.employee_no;
-      const startDate  = req.body?.startDate  ?? q.start_date;
-      const approvedBy = req.body?.approvedBy ?? q.approved_by;
-      if (!employeeNo || !startDate) {
+      const employeeNo = String(req.body?.employeeNo ?? q.employee_no ?? "").trim();
+      const startDateRaw = String(req.body?.startDate ?? q.start_date ?? "").trim();
+      const approvedBy = String(req.body?.approvedBy ?? q.approved_by ?? "管理员").trim();
+      if (!employeeNo || !startDateRaw) {
         return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo(或 employee_no), startDate(或 start_date)" });
       }
-      const emp = await getEmployeeByNo(String(employeeNo));
+      // 日期格式兼容：支持 "2026-04-01" 或 "2026/04/01"
+      const startDateNorm = startDateRaw.replace(/\//g, "-").slice(0, 10);
+      const emp = await getEmployeeByNo(employeeNo);
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
 
       // 查找该员工在指定开始日期的待审批记录
       const allLeaves = await getAllLeaves({ employeeId: emp.id, status: "pending" });
-      const target = allLeaves.find(l => String(l.startDate).slice(0, 10) === String(startDate).slice(0, 10));
+      const target = allLeaves.find(l => String(l.startDate).slice(0, 10) === startDateNorm);
 
       if (!target) {
         return res.status(404).json({
           success: false,
-          error: `未找到 ${emp.name}（${employeeNo}）在 ${startDate} 开始的待审批请假记录`,
+          error: `未找到 ${emp.name}（${employeeNo}）在 ${startDateNorm} 开始的待审批请假记录`,
         });
       }
 
-      await updateLeaveStatus(target.id, "approved", approvedBy ?? "管理员");
+      await updateLeaveStatus(target.id, "approved", approvedBy);
       res.json({
         success: true,
-        message: `已批准 ${emp.name}（${employeeNo}）从 ${startDate} 开始的请假申请`,
+        message: `已批准 ${emp.name}（${employeeNo}）从 ${startDateNorm} 开始的请假申请`,
         leaveId: target.id,
         employeeName: emp.name,
         leaveType: target.leaveType,
@@ -276,29 +297,31 @@ async function startServer() {
   app.patch("/api/leaves/reject-by-no", async (req, res) => {
     try {
       const q = req.query as Record<string, string>;
-      const employeeNo = req.body?.employeeNo ?? q.employee_no;
-      const startDate  = req.body?.startDate  ?? q.start_date;
-      const approvedBy = req.body?.approvedBy ?? q.approved_by;
-      if (!employeeNo || !startDate) {
+      const employeeNo = String(req.body?.employeeNo ?? q.employee_no ?? "").trim();
+      const startDateRaw = String(req.body?.startDate ?? q.start_date ?? "").trim();
+      const approvedBy = String(req.body?.approvedBy ?? q.approved_by ?? "管理员").trim();
+      if (!employeeNo || !startDateRaw) {
         return res.status(400).json({ success: false, error: "缺少必填字段：employeeNo(或 employee_no), startDate(或 start_date)" });
       }
-      const emp = await getEmployeeByNo(String(employeeNo));
+      // 日期格式兼容：支持 "2026-04-01" 或 "2026/04/01"
+      const startDateNorm = startDateRaw.replace(/\//g, "-").slice(0, 10);
+      const emp = await getEmployeeByNo(employeeNo);
       if (!emp) return res.status(404).json({ success: false, error: `员工工号 ${employeeNo} 不存在` });
 
       const allLeaves = await getAllLeaves({ employeeId: emp.id, status: "pending" });
-      const target = allLeaves.find(l => String(l.startDate).slice(0, 10) === String(startDate).slice(0, 10));
+      const target = allLeaves.find(l => String(l.startDate).slice(0, 10) === startDateNorm);
 
       if (!target) {
         return res.status(404).json({
           success: false,
-          error: `未找到 ${emp.name}（${employeeNo}）在 ${startDate} 开始的待审批请假记录`,
+          error: `未找到 ${emp.name}（${employeeNo}）在 ${startDateNorm} 开始的待审批请假记录`,
         });
       }
 
-      await updateLeaveStatus(target.id, "rejected", approvedBy ?? "管理员");
+      await updateLeaveStatus(target.id, "rejected", approvedBy);
       res.json({
         success: true,
-        message: `已拒绝 ${emp.name}（${employeeNo}）从 ${startDate} 开始的请假申请`,
+        message: `已拒绝 ${emp.name}（${employeeNo}）从 ${startDateNorm} 开始的请假申请`,
         leaveId: target.id,
         employeeName: emp.name,
         leaveType: target.leaveType,
@@ -322,7 +345,7 @@ async function startServer() {
       if (!leave) return res.status(404).json({ success: false, error: "请假记录不存在" });
       if (leave.status !== "pending")
         return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法审批` });
-      const approvedBy = req.body?.approvedBy ?? "管理员";
+      const approvedBy = String(req.body?.approvedBy ?? req.query.approved_by ?? "管理员").trim();
       await updateLeaveStatus(id, "approved", approvedBy);
       res.json({ success: true, message: "已批准该请假申请" });
     } catch (err) {
@@ -343,7 +366,7 @@ async function startServer() {
       if (!leave) return res.status(404).json({ success: false, error: "请假记录不存在" });
       if (leave.status !== "pending")
         return res.status(400).json({ success: false, error: `当前状态为「${leave.status}」，无法拒绝` });
-      const approvedBy = req.body?.approvedBy ?? "管理员";
+      const approvedBy = String(req.body?.approvedBy ?? req.query.approved_by ?? "管理员").trim();
       await updateLeaveStatus(id, "rejected", approvedBy);
       res.json({ success: true, message: "已拒绝该请假申请" });
     } catch (err) {
